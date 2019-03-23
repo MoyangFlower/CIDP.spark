@@ -1,6 +1,6 @@
 package CIDP.spark
 
-import java.io.{BufferedWriter, File, FileWriter}
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -17,15 +17,15 @@ import org.apache.spark.{SparkConf, SparkContext}
 
 import scala.io.Source
 
-object import2hbase {
+object bulk_text2hbase {
   def main(args: Array[String]) {
-    val sparkConf = new SparkConf().setAppName("import2hbase-out-loop")
+    val sparkConf = new SparkConf().setAppName("bulk_text2hbase")
       .setMaster("spark://asterix-1:7077")
     //.setMaster("local[*]")
     val sc = new SparkContext(sparkConf)
-    val tablename = "PecursordData"
+    val tablename = "PecursordDataBulk"
     val src = "/home/hadoop/txt_data"
-    val filename = "/home/hadoop/txt_data_log.txt"
+
     sc.hadoopConfiguration.addResource("/home/hadoop/hadoop-2.7.6/etc/hadoop/core-site.xml")
     sc.hadoopConfiguration.addResource("/home/hadoop/hadoop-2.7.6/etc/hadoop/hdfs-site.xml")
     sc.hadoopConfiguration.set("hbase.zookeeper.quorum ", "asterix-2,asterix-6,asterix-8,asterix-10")
@@ -48,35 +48,20 @@ object import2hbase {
 
     for(file <- files){
       System.out.println(file)
+
+      //need data_rdd out of loop
       val lines = Source.fromFile(file).getLines()
       lines foreach(line => {
         val RDD = sc.makeRDD(Array(line))
         System.out.println("the RDD",RDD)
-        // RDD 尽可能大，才能发挥spark计算能力。太小的RDD会在提交任务上花费很多时间。
-        val data_rdd = RDD.flatMap(s => s.split("\\|")).repartition(8).map(_.split(",")).map{ x =>{
+        val data_rdd = RDD.flatMap{s => s.split("\\|")}.map(_.split(",")).map{ x =>{
+
           val put = new Put(Bytes.toBytes(x(0)))
-          x(2).split(" ") foreach (column => {
-            try {
-              put.addColumn(Bytes.toBytes(x(1)), Bytes.toBytes(column.substring(0, 4)), Bytes.toBytes(column.substring(5)))
-            }catch{
-              case e:StringIndexOutOfBoundsException => {
-                println(e)
-                try {
-                  val writer = new BufferedWriter(new FileWriter(new File(filename), true))
-                  writer.write(x(2))
-                  writer.close()
-                } catch {
-                  case e: Exception =>
-                      e.printStackTrace()
-                }
-              }
-            }
-          })
+          put.addColumn(Bytes.toBytes(x(1)),Bytes.toBytes(x(2)),Bytes.toBytes(x(3)))
           (new ImmutableBytesWritable,put)
         }
         }
         data_rdd.saveAsHadoopDataset(jobConf)
-
         //data_rdd.saveAsNewAPIHadoopDataset(jobConf)
       })
     }

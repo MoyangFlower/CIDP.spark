@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="spark-out-loop">
+    <output-path>$PROJECT_DIR$/out/artifacts/spark_out_loop</output-path>
+    <root id="archive" name="spark-out-loop.jar">
+      <element id="module-output" name="CIDP.spark" />
+    </root>
+  </artifact>
+</component>
